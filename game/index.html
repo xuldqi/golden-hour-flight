@@ -14,40 +14,40 @@
 <div id="hud" class="hidden">
   <div class="hud-group hud-left">
     <div class="hud-box">
-      <span class="hud-label">分数</span>
+      <span class="hud-label" data-i18n="hudScore">分数</span>
       <span class="hud-value" id="hud-score">0</span>
     </div>
     <div class="hud-box fuel-box">
-      <span class="hud-label">燃油</span>
+      <span class="hud-label" data-i18n="hudFuel">燃油</span>
       <div class="fuel-track"><div id="fuel-fill"></div></div>
     </div>
     <div id="hud-combo"></div>
   </div>
   <div class="hud-group hud-center">
     <div class="hud-box">
-      <span class="hud-label">光环</span>
+      <span class="hud-label" data-i18n="hudRings">光环</span>
       <span class="hud-value" id="hud-rings">0/16</span>
     </div>
     <div class="hud-box">
-      <span class="hud-label">时间</span>
+      <span class="hud-label" data-i18n="hudTime">时间</span>
       <span class="hud-value" id="hud-time">00:00</span>
     </div>
   </div>
   <div class="hud-group hud-right">
     <div class="hud-box">
-      <span class="hud-label">速度</span>
+      <span class="hud-label" data-i18n="hudSpeed">速度</span>
       <span class="hud-value"><span id="hud-speed">0</span><small> km/h</small></span>
     </div>
     <div class="hud-box">
-      <span class="hud-label">高度</span>
+      <span class="hud-label" data-i18n="hudAlt">高度</span>
       <span class="hud-value"><span id="hud-alt">0</span><small> m</small></span>
     </div>
     <div class="hud-box">
-      <span class="hud-label">航向</span>
+      <span class="hud-label" data-i18n="hudHdg">航向</span>
       <span class="hud-value" id="hud-hdg">0° 北</span>
     </div>
-    <button id="btn-pause" class="icon-btn" title="暂停 (P)">⏸</button>
-    <button id="btn-sound" class="icon-btn" title="声音">🔊</button>
+    <button id="btn-pause" class="icon-btn" data-i18n-title="pauseTitle" title="暂停 (P)">⏸</button>
+    <button id="btn-sound" class="icon-btn" data-i18n-title="soundTitle" title="声音">🔊</button>
   </div>
 </div>
 
@@ -62,22 +62,22 @@
 <div id="toast"></div>
 <div id="popups"></div>
 
-<button id="btn-boost">加速</button>
+<button id="btn-boost" data-i18n="boost">加速</button>
 
 <!-- main menu -->
 <section id="screen-menu" class="overlay">
   <div class="panel">
     <div class="game-logo">✈️</div>
-    <h1>黄金时刻飞行</h1>
-    <p class="tagline">Golden Hour Flight · 穿过黄昏群岛的 16 道光环</p>
-    <button id="btn-start" class="big-btn">开始飞行</button>
+    <h1 data-i18n="gameTitle">黄金时刻飞行</h1>
+    <p class="tagline" data-i18n="tagline">Golden Hour Flight · 穿过黄昏群岛的 16 道光环</p>
+    <button id="btn-start" class="big-btn" data-i18n="start">开始飞行</button>
     <p id="menu-best" class="best-line">暂无记录 — 来创个纪录</p>
     <div class="howto">
-      <p>🖱️ 移动鼠标转向 · ⌨️ 方向键 / WASD 也可以</p>
-      <p>⬆️ 冲向光环得分 · 连穿有连击加分 · Shift / 空格加速</p>
-      <p>⛽ 穿环补油，加速费油 — 油尽坠落，省着点飞</p>
-      <p>📱 手机：拖动屏幕转向，按住「加速」按钮冲刺</p>
-      <p>⚠️ 别撞上小岛，也别掉进海里</p>
+      <p data-i18n="howto1">🖱️ 移动鼠标转向 · ⌨️ 方向键 / WASD 也可以</p>
+      <p data-i18n="howto2">⬆️ 冲向光环得分 · 连穿有连击加分 · Shift / 空格加速</p>
+      <p data-i18n="howto3">⛽ 穿环补油，加速费油 — 油尽坠落，省着点飞</p>
+      <p data-i18n="howto4">📱 手机：拖动屏幕转向，按住「加速」按钮冲刺</p>
+      <p data-i18n="howto5">⚠️ 别撞上小岛，也别掉进海里</p>
     </div>
   </div>
 </section>
@@ -85,10 +85,10 @@
 <!-- pause -->
 <section id="screen-pause" class="overlay hidden">
   <div class="panel">
-    <h2>已暂停</h2>
-    <button id="btn-resume" class="big-btn">继续飞行</button>
-    <button id="btn-restart" class="ghost-btn">重新开始</button>
-    <button id="btn-quit" class="ghost-btn">回主菜单</button>
+    <h2 data-i18n="paused">已暂停</h2>
+    <button id="btn-resume" class="big-btn" data-i18n="resume">继续飞行</button>
+    <button id="btn-restart" class="ghost-btn" data-i18n="restart">重新开始</button>
+    <button id="btn-quit" class="ghost-btn" data-i18n="quit">回主菜单</button>
   </div>
 </section>
 
@@ -96,10 +96,10 @@
 <section id="screen-finish" class="overlay hidden">
   <div class="panel">
     <div class="game-logo">🏁</div>
-    <h2>完赛！</h2>
+    <h2 data-i18n="finishTitle">完赛！</h2>
     <div id="finish-stats" class="stats"></div>
-    <button id="btn-again" class="big-btn">再飞一次</button>
-    <button id="btn-menu2" class="ghost-btn">主菜单</button>
+    <button id="btn-again" class="big-btn" data-i18n="again">再飞一次</button>
+    <button id="btn-menu2" class="ghost-btn" data-i18n="menu2">主菜单</button>
   </div>
 </section>
 

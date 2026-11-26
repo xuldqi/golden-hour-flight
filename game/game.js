@@ -407,6 +407,94 @@ const shotMode = typeof location !== "undefined"
   ? new URLSearchParams(location.search).get("shot")
   : null;
 
+// ------------------------------------------------------------- language ---
+// The UI speaks Chinese or English: ?lang= wins, then the browser's own
+// language, then Chinese. Static page text carries data-i18n keys and is
+// filled in by applyI18n(); strings the game builds at runtime go through
+// the same table.
+const langParam = typeof location !== "undefined"
+  ? new URLSearchParams(location.search).get("lang")
+  : null;
+const LANG = langParam
+  ? (langParam.toLowerCase().startsWith("zh") ? "zh" : "en")
+  : (typeof navigator !== "undefined" && navigator.language
+      ? (navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en")
+      : "zh");
+
+const STR = {
+  zh: {
+    hudScore: "分数", hudFuel: "燃油", hudRings: "光环", hudTime: "时间",
+    hudSpeed: "速度", hudAlt: "高度", hudHdg: "航向",
+    boost: "加速", pauseTitle: "暂停 (P)", soundTitle: "声音",
+    gameTitle: "黄金时刻飞行",
+    tagline: "Golden Hour Flight · 穿过黄昏群岛的 16 道光环",
+    start: "开始飞行",
+    howto1: "🖱️ 移动鼠标转向 · ⌨️ 方向键 / WASD 也可以",
+    howto2: "⬆️ 冲向光环得分 · 连穿有连击加分 · Shift / 空格加速",
+    howto3: "⛽ 穿环补油，加速费油 — 油尽坠落，省着点飞",
+    howto4: "📱 手机：拖动屏幕转向，按住「加速」按钮冲刺",
+    howto5: "⚠️ 别撞上小岛，也别掉进海里",
+    paused: "已暂停", resume: "继续飞行", restart: "重新开始", quit: "回主菜单",
+    finishTitle: "完赛！", again: "再飞一次", menu2: "主菜单",
+    noRecord: "暂无记录 — 来创个纪录",
+    bestLine: (score, time) => `最佳成绩：${score} 分 · 用时 ${time}`,
+    bannerDone: "完赛！", bannerFuel: "燃油耗尽！",
+    statScore: "总分", statTime: "用时", statTimeBonus: "时间奖励",
+    statBestCombo: "最高连击", statCrashes: "坠毁", statFuelLeft: "剩余燃油",
+    crashUnit: " 次", record: "新纪录！",
+    splash: "落水了！ -150", crash: "坠毁！ -150",
+    checkpoint: (a, b) => `检查点 ${a}/${b}`,
+    boundary: "已到边界，正在返航",
+    fuelOutNote: "燃油耗尽 — 下次省着点油",
+    go: "出发！", combo: (n) => `连击 x${n}`,
+    dirs: ["北", "东北", "东", "东南", "南", "西南", "西", "西北"],
+    bootError: (msg) => `启动失败：${msg}（请换用支持 WebGL 的现代浏览器）`,
+  },
+  en: {
+    hudScore: "Score", hudFuel: "Fuel", hudRings: "Rings", hudTime: "Time",
+    hudSpeed: "Speed", hudAlt: "Altitude", hudHdg: "Heading",
+    boost: "BOOST", pauseTitle: "Pause (P)", soundTitle: "Sound",
+    gameTitle: "Golden Hour Flight",
+    tagline: "Thread 16 glowing rings over a sunset archipelago",
+    start: "Start flying",
+    howto1: "🖱️ Move the mouse to steer · ⌨️ Arrow keys / WASD work too",
+    howto2: "⬆️ Fly through rings to score · Chain rings for combo bonuses · Shift / Space boosts",
+    howto3: "⛽ Rings refuel you, boosting burns fuel — run dry and you drop",
+    howto4: "📱 Touch: drag to steer, hold BOOST to sprint",
+    howto5: "⚠️ Don't hit the islands, and don't ditch in the sea",
+    paused: "Paused", resume: "Keep flying", restart: "Restart", quit: "Main menu",
+    finishTitle: "Finished!", again: "Fly again", menu2: "Main menu",
+    noRecord: "No record yet — go set one",
+    bestLine: (score, time) => `Best: ${score} pts · ${time}`,
+    bannerDone: "Finished!", bannerFuel: "Out of fuel!",
+    statScore: "Score", statTime: "Time", statTimeBonus: "Time bonus",
+    statBestCombo: "Best combo", statCrashes: "Crashes", statFuelLeft: "Fuel left",
+    crashUnit: "", record: "New record!",
+    splash: "Splashdown! -150", crash: "Crashed! -150",
+    checkpoint: (a, b) => `Checkpoint ${a}/${b}`,
+    boundary: "Edge of the course — turning back",
+    fuelOutNote: "Out of fuel — ease off the throttle next time",
+    go: "Go!", combo: (n) => `Combo x${n}`,
+    dirs: ["N", "NE", "E", "SE", "S", "SW", "W", "NW"],
+    bootError: (msg) => `Failed to start: ${msg} (please use a modern browser with WebGL)`,
+  },
+};
+const T = STR[LANG];
+
+function applyI18n() {
+  if (typeof document.querySelectorAll !== "function") return;
+  for (const el of document.querySelectorAll("[data-i18n]")) {
+    const key = el.getAttribute("data-i18n");
+    if (T[key]) el.textContent = T[key];
+  }
+  for (const el of document.querySelectorAll("[data-i18n-title]")) {
+    const key = el.getAttribute("data-i18n-title");
+    if (T[key]) el.title = T[key];
+  }
+  document.title = LANG === "zh" ? "黄金时刻飞行 · Golden Hour Flight" : "Golden Hour Flight";
+  if (document.documentElement) document.documentElement.lang = LANG === "zh" ? "zh-CN" : "en";
+}
+
 const S = {
   mode: "menu",
   pos: [...startPos],
@@ -548,8 +636,8 @@ function setScreen(name) {
 
 function refreshMenuBest() {
   menuBestEl.textContent = best
-    ? `最佳成绩：${best.score} 分 · 用时 ${fmtTime(best.time)}`
-    : "暂无记录 — 来创个纪录";
+    ? T.bestLine(best.score, fmtTime(best.time))
+    : T.noRecord;
 }
 
 $("btn-start").addEventListener("click", () => {
@@ -661,7 +749,7 @@ function finishRun(note = "") {
   sound.finish();
   sound.setEngine(0, false);
   showFinish();
-  showBanner(note ? "燃油耗尽！" : "完赛！", 1600);
+  showBanner(note ? T.bannerFuel : T.bannerDone, 1600);
 }
 
 function showFinish() {
@@ -677,14 +765,14 @@ function showFinish() {
     }
   }
   finishStatsEl.innerHTML =
-    `<div class="stat"><span>总分</span><b>${S.score}</b></div>` +
-    `<div class="stat"><span>用时</span><b>${fmtTime(S.elapsed)}</b></div>` +
-    `<div class="stat"><span>时间奖励</span><b>+${S.timeBonus}</b></div>` +
-    `<div class="stat"><span>最高连击</span><b>x${Math.max(1, S.bestCombo)}</b></div>` +
-    `<div class="stat"><span>坠毁</span><b>${S.crashes} 次</b></div>` +
-    `<div class="stat"><span>剩余燃油</span><b>${Math.round(S.fuel)}%</b></div>` +
+    `<div class="stat"><span>${T.statScore}</span><b>${S.score}</b></div>` +
+    `<div class="stat"><span>${T.statTime}</span><b>${fmtTime(S.elapsed)}</b></div>` +
+    `<div class="stat"><span>${T.statTimeBonus}</span><b>+${S.timeBonus}</b></div>` +
+    `<div class="stat"><span>${T.statBestCombo}</span><b>x${Math.max(1, S.bestCombo)}</b></div>` +
+    `<div class="stat"><span>${T.statCrashes}</span><b>${S.crashes}${T.crashUnit}</b></div>` +
+    `<div class="stat"><span>${T.statFuelLeft}</span><b>${Math.round(S.fuel)}%</b></div>` +
     (S.finishNote ? `<div class="note">${S.finishNote}</div>` : "") +
-    (isRecord ? `<div class="record">新纪录！</div>` : "");
+    (isRecord ? `<div class="record">${T.record}</div>` : "");
   setScreen("finished");
 }
 
@@ -736,12 +824,12 @@ function crash(kind) {
   if (kind === "water") {
     sound.splash();
     particles.burst(S.pos, 42, [0.75, 0.9, 1.0], 20, 0.9, 3.2, -3);
-    showBanner("落水了！ -150", 1200);
+    showBanner(T.splash, 1200);
   } else {
     sound.crash();
     particles.burst(S.pos, 42, [1.0, 0.52, 0.2], 24, 0.9, 3.4, -7);
     particles.burst(S.pos, 18, [0.35, 0.33, 0.32], 12, 1.3, 4.5, -2);
-    showBanner("坠毁！ -150", 1200);
+    showBanner(T.crash, 1200);
   }
   sound.setEngine(0, false);
 }
@@ -756,7 +844,7 @@ function passRing(index, crossing) {
   const segBonus = Math.max(0, Math.round((17 - S.segTime) * 6));
   const gained = 100 + comboBonus + segBonus;
   S.score += gained;
-  S.fuel = Math.min(100, S.fuel + 9);
+  S.fuel = Math.min(100, S.fuel + 6);
   S.segTime = 0;
   particles.burst(ring.pos, 30, COL.ringGold, 17, 0.8, 3.0, -2);
   popupAt(crossing, `+${gained}`);
@@ -766,7 +854,7 @@ function passRing(index, crossing) {
   }
   if (S.passed % 4 === 0) {
     sound.checkpoint();
-    showToast(`检查点 ${S.passed}/${RING_COUNT}`);
+    showToast(T.checkpoint(S.passed, RING_COUNT));
   } else {
     sound.ringChime(S.combo);
   }
@@ -818,7 +906,7 @@ function stepFlying(dt) {
     S.pos[2] += inward[2] * 42 * dt;
     if (S.gt - S.toastAt > 3) {
       S.toastAt = S.gt;
-      showToast("已到边界，正在返航");
+      showToast(T.boundary);
     }
   }
 
@@ -826,9 +914,9 @@ function stepFlying(dt) {
   S.segTime += dt;
 
   // --- fuel: cruising sips, boosting gulps, an empty tank ends the run
-  S.fuel = Math.max(0, S.fuel - (boosting ? 1.05 : 0.55) * dt);
+  S.fuel = Math.max(0, S.fuel - (boosting ? 4.6 : 1.15) * dt);
   if (S.fuel <= 0) {
-    finishRun("燃油耗尽 — 下次省着点油");
+    finishRun(T.fuelOutNote);
     return;
   }
 
@@ -886,8 +974,7 @@ function stepFlying(dt) {
 /** Compass heading for the HUD: yaw 0 faces north (-Z), bearing grows clockwise. */
 function headingText() {
   const deg = ((Math.round((-S.yaw * 180) / Math.PI) % 360) + 360) % 360;
-  const dirs = ["北", "东北", "东", "东南", "南", "西南", "西", "西北"];
-  return `${deg}° ${dirs[Math.round(deg / 45) % 8]}`;
+  return `${deg}° ${T.dirs[Math.round(deg / 45) % 8]}`;
 }
 
 function updateHud() {
@@ -899,7 +986,7 @@ function updateHud() {
   hudHdg.textContent = headingText();
   fuelFill.style.width = `${S.fuel}%`;
   fuelFill.classList.toggle("low", S.fuel < 25);
-  hudCombo.textContent = S.combo >= 2 ? `连击 x${S.combo}` : "";
+  hudCombo.textContent = S.combo >= 2 ? T.combo(S.combo) : "";
 }
 
 function updateNav() {
@@ -1058,7 +1145,7 @@ function frame(now) {
       }
       if (S.countT <= 0) {
         S.mode = "flying";
-        showBanner("出发！", 800);
+        showBanner(T.go, 800);
         sound.countBeep(true);
       }
       S.speed = lerp(S.speed, 30, damp(1.5, dt));
@@ -1164,6 +1251,7 @@ function stageShot() {
 // ------------------------------------------------------------------ boot ---
 
 function init() {
+  applyI18n();
   renderer = new Renderer(canvas);
   const gl = renderer.gl;
   const terrain = buildTerrainGeometry();
@@ -1201,6 +1289,6 @@ function init() {
 try {
   init();
 } catch (err) {
-  menuBestEl.textContent = `启动失败：${err.message}（请换用支持 WebGL 的现代浏览器）`;
+  menuBestEl.textContent = T.bootError(err.message);
   throw err;
 }
