@@ -1,0 +1,1 @@
+{"description":"Golden Hour Flight - a low-poly 3D flight game for the browser. Fly through glowing rings over a sunset archipelago.","engines":{"node":">=22.18"},"license":"MIT","name":"golden-hour-flight","private":true,"scripts":{"build":"node main.ts","serve":"node serve.ts"},"type":"module","version":"1.0.0"}
