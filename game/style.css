@@ -108,6 +108,18 @@ body {
   background: linear-gradient(90deg, #ff5a3d, #ff8a5e);
 }
 
+#hull-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #4dc3ff, #7ce7c4);
+  transition: width 0.3s ease;
+}
+
+#hull-fill.low {
+  background: linear-gradient(90deg, #ff5a3d, #ff8a5e);
+}
+
 .note {
   margin-top: 12px;
   font-size: 16px;

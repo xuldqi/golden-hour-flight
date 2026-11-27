@@ -14,6 +14,12 @@
  * Fuel: the tank drains as you fly and faster under boost; each ring
  * passed tops it up, and an empty tank ends the run — throttle
  * discipline is a decision, not a detail.
+ *
+ * Precision: a dead-center pass pays a Perfect bonus, while clipping a
+ * ring's frame still counts but breaks the combo and damages the hull —
+ * five clips and she falls apart. Gold stars hover off the racing line
+ * (+150 and a splash of fuel) for pilots willing to spend time and
+ * combo clock on them, and a slow crosswind keeps headings honest.
  */
 
 import {
@@ -83,6 +89,7 @@ const hudSpeed = $("hud-speed");
 const hudAlt = $("hud-alt");
 const hudHdg = $("hud-hdg");
 const fuelFill = $("fuel-fill");
+const hullFill = $("hull-fill"); // absent in some test stubs — always guarded
 const bannerEl = $("banner");
 const toastEl = $("toast");
 const navMarker = $("nav-marker");
@@ -115,6 +122,14 @@ const COL = {
   planeDark: [0.12, 0.16, 0.24],
   lighthouseWhite: [0.96, 0.94, 0.9],
   lighthouseRed: [0.85, 0.22, 0.18],
+  asphalt: [0.16, 0.17, 0.2],
+  mesa: [0.58, 0.52, 0.42],
+  houseWall: [0.94, 0.88, 0.76],
+  houseWall2: [0.88, 0.8, 0.66],
+  roof: [0.78, 0.36, 0.22],
+  boatWood: [0.45, 0.3, 0.18],
+  sail: [0.97, 0.95, 0.9],
+  star: [1.0, 0.78, 0.22],
 };
 
 // ---------------------------------------------------------------- world ---
@@ -154,6 +169,29 @@ const islands = [];
 function islandHeightAt(isle, dist) {
   if (dist >= isle.r) return -3;
   return isle.peak * (1 - dist / isle.r) - 2;
+}
+
+/**
+ * Bonus stars: one per leg, set off the racing line so chasing one is a
+ * real decision — +150 points and a splash of fuel, paid for with time,
+ * distance and the combo clock. Seeded placement, like everything else.
+ */
+const stars = [];
+for (let i = 0; i < RING_COUNT; i++) {
+  const a = rings[i].pos;
+  const b = rings[(i + 1) % RING_COUNT].pos;
+  const dir = [b[0] - a[0], b[2] - a[2]];
+  const len = Math.hypot(dir[0], dir[1]) || 1;
+  const side = i % 2 === 0 ? 1 : -1;
+  const off = 52 + rng() * 22;
+  stars.push({
+    pos: [
+      (a[0] + b[0]) / 2 + (-dir[1] / len) * off * side,
+      (a[1] + b[1]) / 2 + (rng() - 0.35) * 22,
+      (a[2] + b[2]) / 2 + (dir[0] / len) * off * side,
+    ],
+    taken: false,
+  });
 }
 {
   // A heart island near the middle and a ring of islands around it.
@@ -251,6 +289,79 @@ function buildTerrainGeometry() {
   batch.append(cylinderGeometry(4.2, 5.2, 7, 10, COL.lighthouseWhite), mat4Compose(lx, ly + 3.5, lz, 0, 0, 0, 1, 1, 1));
   batch.append(cylinderGeometry(3.4, 4.2, 7, 10, COL.lighthouseRed), mat4Compose(lx, ly + 10.5, lz, 0, 0, 0, 1, 1, 1));
   batch.append(cylinderGeometry(4.4, 4.4, 1.4, 10, COL.planeDark), mat4Compose(lx, ly + 14.6, lz, 0, 0, 0, 1, 1, 1));
+
+  // --- the island airport: a flat mesa on the heart island carrying a
+  // runway strip, threshold marks and two hangars. Pure landmark — the
+  // course still starts out over the water — but it gives the menu orbit
+  // and the home straight a recognisable home base.
+  const mesaX = lh.x + 95, mesaZ = lh.z - 55;
+  const mesaDist = Math.hypot(95, 55);
+  const mesaTop = islandHeightAt(lh, mesaDist) + 0.6;
+  batch.append(
+    cylinderGeometry(34, 42, mesaTop + 6, 12, COL.mesa),
+    mat4Compose(mesaX, (mesaTop + 6) / 2 - 6, mesaZ, 0, 0.4, 0, 1, 1, 1),
+  );
+  const runwayYaw = 0.6;
+  batch.append(
+    boxGeometry(52, 0.7, 10, COL.asphalt),
+    mat4Compose(mesaX, mesaTop + 0.35, mesaZ, 0, runwayYaw, 0, 1, 1, 1),
+  );
+  for (const endSign of [-1, 1]) {
+    for (let s = -1; s <= 1; s++) {
+      batch.append(
+        boxGeometry(3.4, 0.85, 1.1, COL.lighthouseWhite),
+        mat4Compose(
+          mesaX + Math.cos(runwayYaw) * endSign * 22 - Math.sin(runwayYaw) * s * 3,
+          mesaTop + 0.42,
+          mesaZ - Math.sin(runwayYaw) * endSign * 22 - Math.cos(runwayYaw) * s * 3,
+          0, runwayYaw, 0, 1, 1, 1,
+        ),
+      );
+    }
+  }
+  for (const hangarOff of [[-14, 13], [12, 14.5]]) {
+    const hx = mesaX + hangarOff[0], hz = mesaZ + hangarOff[1];
+    batch.append(boxGeometry(9, 4.4, 7, COL.houseWall2), mat4Compose(hx, mesaTop + 2.2, hz, 0, runwayYaw, 0, 1, 1, 1));
+    batch.append(coneGeometry(5.6, 2.6, 4, COL.roof), mat4Compose(hx, mesaTop + 5.7, hz, 0, runwayYaw + Math.PI / 4, 0, 1, 1, 1));
+  }
+
+  // --- villages: little clusters of houses on the bigger islands.
+  for (const isle of [islands[0], islands[2], islands[5]]) {
+    if (!isle) continue;
+    const houses = 4 + Math.floor(rng() * 3);
+    const baseAng = rng() * Math.PI * 2;
+    for (let i = 0; i < houses; i++) {
+      const ang = baseAng + (rng() - 0.5) * 1.1;
+      const dist = isle.r * (0.3 + rng() * 0.26);
+      const hx = isle.x + Math.cos(ang) * dist;
+      const hz = isle.z + Math.sin(ang) * dist;
+      const hy = islandHeightAt(isle, dist);
+      if (hy < 3) continue;
+      const s = 0.85 + rng() * 0.5;
+      const yaw = rng() * Math.PI;
+      batch.append(
+        boxGeometry(4.6, 3.1, 3.8, rng() > 0.5 ? COL.houseWall : COL.houseWall2),
+        mat4Compose(hx, hy + 1.55 * s, hz, 0, yaw, 0, s, s, s),
+      );
+      batch.append(
+        coneGeometry(3.7, 2.3, 4, COL.roof),
+        mat4Compose(hx, hy + (3.1 + 1.15) * s, hz, 0, yaw + Math.PI / 4, 0, s, s, s),
+      );
+    }
+  }
+
+  // --- sailboats anchored off a few shores.
+  for (const isle of [islands[0], islands[1], islands[3]]) {
+    if (!isle) continue;
+    const ang = rng() * Math.PI * 2;
+    const dist = isle.r * 1.22;
+    const bx = isle.x + Math.cos(ang) * dist;
+    const bz = isle.z + Math.sin(ang) * dist;
+    const yaw = rng() * Math.PI * 2;
+    batch.append(boxGeometry(7.2, 1.7, 2.7, COL.boatWood), mat4Compose(bx, 0.55, bz, 0, yaw, 0, 1, 1, 1));
+    batch.append(cylinderGeometry(0.14, 0.14, 6.4, 5, COL.trunk), mat4Compose(bx, 3.6, bz, 0, yaw, 0, 1, 1, 1));
+    batch.append(boxGeometry(0.16, 4.4, 3.1, COL.sail), mat4Compose(bx, 3.9, bz, 0, yaw, 0, 1, 1, 1));
+  }
   return { batch, lighthouseTop: [lx, ly + 15.6, lz] };
 }
 
@@ -383,6 +494,7 @@ let planeMesh = null;
 let propMesh = null;
 let lampMesh = null;
 let beaconMesh = null;
+let starMesh = null;
 let ringMeshes = null; // { next, todo, done }
 let cloudList = [];
 let lighthouseTop = [0, 80, 0];
@@ -423,17 +535,17 @@ const LANG = langParam
 
 const STR = {
   zh: {
-    hudScore: "分数", hudFuel: "燃油", hudRings: "光环", hudTime: "时间",
+    hudScore: "分数", hudFuel: "燃油", hudHull: "机体", hudRings: "光环", hudTime: "时间",
     hudSpeed: "速度", hudAlt: "高度", hudHdg: "航向",
     boost: "加速", pauseTitle: "暂停 (P)", soundTitle: "声音",
     gameTitle: "黄金时刻飞行",
     tagline: "Golden Hour Flight · 穿过黄昏群岛的 16 道光环",
     start: "开始飞行",
     howto1: "🖱️ 移动鼠标转向 · ⌨️ 方向键 / WASD 也可以",
-    howto2: "⬆️ 冲向光环得分 · 连穿有连击加分 · Shift / 空格加速",
+    howto2: "⬆️ 正中穿环有完美加分 · 擦环会伤机体、断连击 · Shift / 空格加速",
     howto3: "⛽ 穿环补油，加速费油 — 油尽坠落，省着点飞",
     howto4: "📱 手机：拖动屏幕转向，按住「加速」按钮冲刺",
-    howto5: "⚠️ 别撞上小岛，也别掉进海里",
+    howto5: "⭐ 航线外有金星可捡（+150 分） · ⚠️ 别撞上小岛，也别掉进海里",
     paused: "已暂停", resume: "继续飞行", restart: "重新开始", quit: "回主菜单",
     finishTitle: "完赛！", again: "再飞一次", menu2: "主菜单",
     noRecord: "暂无记录 — 来创个纪录",
@@ -441,7 +553,9 @@ const STR = {
     bannerDone: "完赛！", bannerFuel: "燃油耗尽！",
     statScore: "总分", statTime: "用时", statTimeBonus: "时间奖励",
     statBestCombo: "最高连击", statCrashes: "坠毁", statFuelLeft: "剩余燃油",
+    statHull: "机体完好", statStars: "金星",
     crashUnit: " 次", record: "新纪录！",
+    perfect: "完美！", graze: "擦环而过！机体受损", hullFail: "机体散架！ -150",
     splash: "落水了！ -150", crash: "坠毁！ -150",
     checkpoint: (a, b) => `检查点 ${a}/${b}`,
     boundary: "已到边界，正在返航",
@@ -451,17 +565,17 @@ const STR = {
     bootError: (msg) => `启动失败：${msg}（请换用支持 WebGL 的现代浏览器）`,
   },
   en: {
-    hudScore: "Score", hudFuel: "Fuel", hudRings: "Rings", hudTime: "Time",
+    hudScore: "Score", hudFuel: "Fuel", hudHull: "Hull", hudRings: "Rings", hudTime: "Time",
     hudSpeed: "Speed", hudAlt: "Altitude", hudHdg: "Heading",
     boost: "BOOST", pauseTitle: "Pause (P)", soundTitle: "Sound",
     gameTitle: "Golden Hour Flight",
     tagline: "Thread 16 glowing rings over a sunset archipelago",
     start: "Start flying",
     howto1: "🖱️ Move the mouse to steer · ⌨️ Arrow keys / WASD work too",
-    howto2: "⬆️ Fly through rings to score · Chain rings for combo bonuses · Shift / Space boosts",
+    howto2: "⬆️ Dead-center passes earn a Perfect bonus · Clipping a ring hurts the hull and breaks your combo · Shift / Space boosts",
     howto3: "⛽ Rings refuel you, boosting burns fuel — run dry and you drop",
     howto4: "📱 Touch: drag to steer, hold BOOST to sprint",
-    howto5: "⚠️ Don't hit the islands, and don't ditch in the sea",
+    howto5: "⭐ Gold stars off the racing line pay +150 · ⚠️ Don't hit the islands, and don't ditch in the sea",
     paused: "Paused", resume: "Keep flying", restart: "Restart", quit: "Main menu",
     finishTitle: "Finished!", again: "Fly again", menu2: "Main menu",
     noRecord: "No record yet — go set one",
@@ -469,7 +583,9 @@ const STR = {
     bannerDone: "Finished!", bannerFuel: "Out of fuel!",
     statScore: "Score", statTime: "Time", statTimeBonus: "Time bonus",
     statBestCombo: "Best combo", statCrashes: "Crashes", statFuelLeft: "Fuel left",
+    statHull: "Hull", statStars: "Stars",
     crashUnit: "", record: "New record!",
+    perfect: "Perfect!", graze: "Clipped the ring! Hull damaged", hullFail: "Hull failure! -150",
     splash: "Splashdown! -150", crash: "Crashed! -150",
     checkpoint: (a, b) => `Checkpoint ${a}/${b}`,
     boundary: "Edge of the course — turning back",
@@ -511,6 +627,8 @@ const S = {
   elapsed: 0,
   segTime: 0,
   fuel: 100,
+  hull: 100,
+  starsGot: 0,
   timeBonus: 0,
   finishNote: "",
   countT: 0,
@@ -701,6 +819,9 @@ function resetRun() {
   S.elapsed = 0;
   S.segTime = 0;
   S.fuel = 100;
+  S.hull = 100;
+  S.starsGot = 0;
+  for (const st of stars) st.taken = false;
   S.timeBonus = 0;
   S.finishNote = "";
   for (const ring of rings) ring.state = "todo";
@@ -771,6 +892,8 @@ function showFinish() {
     `<div class="stat"><span>${T.statBestCombo}</span><b>x${Math.max(1, S.bestCombo)}</b></div>` +
     `<div class="stat"><span>${T.statCrashes}</span><b>${S.crashes}${T.crashUnit}</b></div>` +
     `<div class="stat"><span>${T.statFuelLeft}</span><b>${Math.round(S.fuel)}%</b></div>` +
+    `<div class="stat"><span>${T.statHull}</span><b>${Math.max(0, Math.round(S.hull))}%</b></div>` +
+    `<div class="stat"><span>${T.statStars}</span><b>${S.starsGot}/${stars.length}</b></div>` +
     (S.finishNote ? `<div class="note">${S.finishNote}</div>` : "") +
     (isRecord ? `<div class="record">${T.record}</div>` : "");
   setScreen("finished");
@@ -812,6 +935,7 @@ function respawn() {
   S.pitch = yp.pitch;
   S.roll = 0;
   S.speed = 47;
+  S.hull = Math.max(S.hull, 55); // the ground crew patches her up, roughly
   S.mode = "flying";
 }
 
@@ -825,6 +949,11 @@ function crash(kind) {
     sound.splash();
     particles.burst(S.pos, 42, [0.75, 0.9, 1.0], 20, 0.9, 3.2, -3);
     showBanner(T.splash, 1200);
+  } else if (kind === "hull") {
+    sound.crash();
+    particles.burst(S.pos, 42, [1.0, 0.52, 0.2], 24, 0.9, 3.4, -7);
+    particles.burst(S.pos, 26, [0.3, 0.29, 0.28], 13, 1.5, 5.0, 1);
+    showBanner(T.hullFail, 1200);
   } else {
     sound.crash();
     particles.burst(S.pos, 42, [1.0, 0.52, 0.2], 24, 0.9, 3.4, -7);
@@ -834,20 +963,36 @@ function crash(kind) {
   sound.setEngine(0, false);
 }
 
-function passRing(index, crossing) {
+function passRing(index, crossing, kind = "clean") {
   const ring = rings[index];
   ring.state = "done";
   S.passed++;
-  S.combo++;
-  S.bestCombo = Math.max(S.bestCombo, S.combo);
-  const comboBonus = Math.min(8, S.combo - 1) * 25;
-  const segBonus = Math.max(0, Math.round((17 - S.segTime) * 6));
-  const gained = 100 + comboBonus + segBonus;
-  S.score += gained;
-  S.fuel = Math.min(100, S.fuel + 6);
+  let gained;
+  if (kind === "graze") {
+    // Through the frame, not the hole: the ring counts, but the combo
+    // dies, the refill is halved and the hull pays for it.
+    gained = 50;
+    S.combo = 0;
+    S.score += gained;
+    S.fuel = Math.min(100, S.fuel + 3);
+    S.hull -= 22;
+    particles.burst(crossing, 26, [1.0, 0.55, 0.2], 20, 0.7, 3.0, -4);
+    particles.burst(crossing, 10, [0.4, 0.38, 0.36], 10, 1.0, 3.6, -1);
+    popupAt(crossing, `+${gained}`);
+    sound.crash();
+    showBanner(T.graze, 1200);
+  } else {
+    S.combo++;
+    S.bestCombo = Math.max(S.bestCombo, S.combo);
+    const comboBonus = Math.min(8, S.combo - 1) * 25;
+    const segBonus = Math.max(0, Math.round((17 - S.segTime) * 6));
+    gained = 100 + comboBonus + segBonus + (kind === "perfect" ? 60 : 0);
+    S.score += gained;
+    S.fuel = Math.min(100, S.fuel + 6);
+    particles.burst(ring.pos, kind === "perfect" ? 48 : 30, COL.ringGold, 17, 0.8, 3.0, -2);
+    popupAt(crossing, kind === "perfect" ? `${T.perfect} +${gained}` : `+${gained}`);
+  }
   S.segTime = 0;
-  particles.burst(ring.pos, 30, COL.ringGold, 17, 0.8, 3.0, -2);
-  popupAt(crossing, `+${gained}`);
   if (index === RING_COUNT - 1) {
     finishRun();
     return;
@@ -855,7 +1000,7 @@ function passRing(index, crossing) {
   if (S.passed % 4 === 0) {
     sound.checkpoint();
     showToast(T.checkpoint(S.passed, RING_COUNT));
-  } else {
+  } else if (kind !== "graze") {
     sound.ringChime(S.combo);
   }
   S.targetRing++;
@@ -898,6 +1043,12 @@ function stepFlying(dt) {
   S.pos[2] += f[2] * S.speed * dt;
   S.pos[1] = Math.min(S.pos[1], 330);
 
+  // A slow sunset crosswind drifts the plane off its line; holding a
+  // heading through it is part of the flying. Smooth and deterministic —
+  // a function of the run clock, never of wall time.
+  S.pos[0] += Math.sin(S.gt * 0.1) * 2.4 * dt;
+  S.pos[2] += Math.cos(S.gt * 0.073) * 2.4 * dt;
+
   // soft world boundary: nudge back toward the archipelago
   const distC = Math.hypot(S.pos[0], S.pos[2]);
   if (distC > WORLD_LIMIT) {
@@ -936,6 +1087,14 @@ function stepFlying(dt) {
         );
       }
     }
+    // A hurt engine smokes: the worse the hull, the thicker the trail.
+    if (S.hull < 55 && Math.random() < dt * (62 - S.hull)) {
+      particles.spawn(
+        [S.pos[0], S.pos[1] + 0.4, S.pos[2]],
+        [-f[0] * 3, 1.6, -f[2] * 3],
+        1.1, [0.24, 0.23, 0.22], 3.6, 1.2, 0.6,
+      );
+    }
   }
 
   // --- ring pass detection
@@ -952,8 +1111,33 @@ function stepFlying(dt) {
     ];
     const d = Math.hypot(cross[0] - ring.pos[0], cross[1] - ring.pos[1], cross[2] - ring.pos[2]);
     if (d < RING_RADIUS + 1) {
-      passRing(S.targetRing, cross);
+      passRing(S.targetRing, cross, d <= 6 ? "perfect" : "clean");
       if (S.mode !== "flying") return;
+    } else if (d <= RING_RADIUS + 4.5) {
+      // Struck the frame itself: counts as a pass, at a price.
+      passRing(S.targetRing, cross, "graze");
+      if (S.mode !== "flying") return;
+      if (S.hull <= 0) {
+        crash("hull");
+        return;
+      }
+    }
+  }
+
+  // --- bonus stars
+  for (const st of stars) {
+    if (st.taken) continue;
+    const dx = S.pos[0] - st.pos[0];
+    const dy = S.pos[1] - st.pos[1];
+    const dz = S.pos[2] - st.pos[2];
+    if (dx * dx + dy * dy + dz * dz < 121) {
+      st.taken = true;
+      S.starsGot++;
+      S.score += 150;
+      S.fuel = Math.min(100, S.fuel + 3);
+      particles.burst(st.pos, 24, COL.star, 14, 0.7, 2.8, -1);
+      popupAt(st.pos, "+150 ⭐");
+      sound.ringChime(9);
     }
   }
 
@@ -986,6 +1170,10 @@ function updateHud() {
   hudHdg.textContent = headingText();
   fuelFill.style.width = `${S.fuel}%`;
   fuelFill.classList.toggle("low", S.fuel < 25);
+  if (hullFill) {
+    hullFill.style.width = `${Math.max(0, S.hull)}%`;
+    hullFill.classList.toggle("low", S.hull < 35);
+  }
   hudCombo.textContent = S.combo >= 2 ? T.combo(S.combo) : "";
 }
 
@@ -1103,6 +1291,17 @@ function render(dt) {
     }
   }
 
+  // bonus stars, spinning and bobbing over the water
+  for (let i = 0; i < stars.length; i++) {
+    const st = stars[i];
+    if (st.taken) continue;
+    renderer.draw(
+      starMesh,
+      mat4Compose(st.pos[0], st.pos[1] + Math.sin(gt * 2 + i * 1.7) * 1.3, st.pos[2], 0, gt * 1.6 + i, gt * 0.7, 1, 1, 1),
+      { emissive: 0.8 },
+    );
+  }
+
   // beacon over the next ring
   if (S.mode === "flying" || S.mode === "countdown" || S.mode === "photo") {
     const ring = rings[S.targetRing];
@@ -1199,6 +1398,9 @@ function stageShot() {
     S.elapsed = 38;
     S.segTime = 5;
     S.fuel = 82;
+    S.hull = 86;
+    S.starsGot = 1;
+    stars[1].taken = true;
     const a = rings[2].pos;
     const b = rings[3].pos;
     const dir = norm3([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
@@ -1232,6 +1434,8 @@ function stageShot() {
     S.bestCombo = 7;
     S.crashes = 1;
     S.fuel = 23;
+    S.hull = 78;
+    S.starsGot = 5;
     const dir = norm3([-140, -12, -560]);
     S.pos = [150, 96, 300];
     const yp = yawPitchFromDir(dir);
@@ -1261,6 +1465,7 @@ function init() {
   planeMesh = new Mesh(gl, buildPlaneGeometry());
   propMesh = new Mesh(gl, buildPropGeometry());
   lampMesh = new Mesh(gl, sphereGeometry(1.5, 8, 6, [1.0, 0.85, 0.45]));
+  starMesh = new Mesh(gl, sphereGeometry(2.3, 6, 5, COL.star));
   beaconMesh = new Mesh(gl, cylinderGeometry(2.6, 2.6, 340, 10, COL.ringGold));
   ringMeshes = {
     next: new Mesh(gl, torusGeometry(RING_RADIUS, 1.5, 10, 30, COL.ringNext)),
